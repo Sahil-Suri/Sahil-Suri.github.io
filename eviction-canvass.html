@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eviction Defense Canvass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,700;1,8..60,500&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+
+
+
+
+<style>
+:root{
+  --bg:#FAF9F8;
+  --card:#FFFFFF;
+  --line:#C1C0BF;
+  --ink:#231F20;   
+  --ink-soft:#605c5c; 
+  --blue:#231F20;    
+  --blue-soft:#ECEBEA; 
+  --red:#EC1F27;        /* DSA Red */
+  --red-soft:#FBD2D4;   /* DSA Red Tint 4 */
+  --green:#3E6B54;      /* DSA Black Tint 1, "resolved" status */
+  --green-soft:#DDE7DE; /* light neutral tint */
+}
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Public Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:760px; margin:0 auto; padding:36px 20px 100px; }
+
+  /* ---- Org branding bar ---- */
+  .org-bar{
+    display:flex; align-items:center; gap:12px;
+    padding-bottom:18px; margin-bottom:18px;
+    border-bottom:1px solid var(--line);
+  }
+  .org-bar img{
+    width:38px; height:38px; flex:0 0 38px; object-fit:contain;
+  }
+  .org-bar-text{ line-height:1.25; }
+  .org-bar-name{
+    font-family:'JetBrains Mono', monospace; font-weight:600; font-size:13px;
+    letter-spacing:.04em; color:var(--red); text-transform:uppercase;
+  }
+  .org-bar-sub{
+    font-family:'Public Sans', sans-serif; font-size:12px; color:var(--ink-soft);
+  }
+
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--blue); display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  }
+  .eyebrow::before{ content:""; width:22px; height:1px; background:var(--blue); display:inline-block; }
+
+  h1{ font-family:'Source Serif 4', serif; font-weight:700; font-size:34px; line-height:1.15; margin:0 0 10px; }
+  .intro{ color:var(--ink-soft); font-size:15.5px; line-height:1.55; max-width:56ch; margin:0 0 20px; }
+
+  .config-note{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px; line-height:1.6; color:var(--blue);
+    background:var(--blue-soft); border:1px solid var(--blue);
+    border-radius:2px; padding:12px 14px; margin-bottom:28px;
+  }
+
+  .progress{ display:flex; gap:5px; margin-bottom:28px; }
+  .progress span{ flex:1; height:4px; background:var(--line); border-radius:2px; transition:background .2s ease; }
+  .progress span.done{ background:var(--green); }
+  .progress-label{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-soft); margin:-20px 0 26px; }
+
+  #map{
+    height:380px; width:100%; border-radius:3px; border:1px solid var(--line);
+    margin-bottom:36px; background:var(--card);
+  }
+  .marker-pin{
+    width:30px; height:30px; border-radius:50% 50% 50% 0;
+    background:var(--blue); border:2px solid var(--card);
+    transform:rotate(-45deg);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 3px rgba(0,0,0,.35);
+  }
+  .marker-pin.logged{ background:var(--green); }
+  .marker-pin span{
+    transform:rotate(45deg); color:var(--card);
+    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;
+  }
+
+  .stops{ display:flex; flex-direction:column; gap:26px; }
+
+  .stop{
+    background:var(--card); border:1px solid var(--line); border-radius:3px;
+    display:flex; overflow:hidden; scroll-margin-top:20px;
+  }
+  .stop-tab{
+    width:44px; flex:0 0 44px; background:var(--blue); color:var(--card);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-size:15px; font-weight:600;
+  }
+  .stop.logged .stop-tab{ background:var(--green); }
+  .stop-body{ padding:20px 22px; flex:1; min-width:0; }
+
+  .stop-address{
+    font-family:'Source Serif 4', serif; font-weight:700; font-size:20px;
+    margin:0 0 4px; color:var(--ink);
+  }
+  .stop-address a{ color:inherit; text-decoration:none; border-bottom:1.5px solid var(--blue); }
+  .stop-address a:hover{ color:var(--blue); }
+
+  .caption{
+    font-family:'Source Serif 4', serif; font-style:italic; font-size:14.5px;
+    color:var(--ink-soft); margin:0 0 14px;
+  }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .chip{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.02em;
+    padding:5px 10px; border-radius:2px; border:1px solid var(--line); color:var(--ink-soft);
+  }
+  .chip.status-urgent{ background:var(--red-soft); border-color:var(--red); color:var(--red); }
+  .chip.status-ok{ background:var(--green-soft); border-color:var(--green); color:var(--green); }
+  .chip.status-neutral{ background:var(--blue-soft); border-color:var(--blue); color:var(--blue); }
+
+  .directions-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--blue); text-decoration:none; border:1px solid var(--blue); border-radius:2px;
+    padding:8px 12px; margin-bottom:18px;
+    transition:background .15s ease, color .15s ease;
+  }
+  .directions-btn:hover{ background:var(--blue); color:var(--card); }
+
+  .log-divider{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-soft); border-top:1px solid var(--line); padding-top:14px; margin-bottom:14px;
+  }
+
+  .checks{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+  .check-tile{ position:relative; }
+  .check-tile input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+  .check-tile label{
+    display:flex; align-items:center; gap:8px;
+    font-size:13.5px; padding:11px 12px; border:1px solid var(--line); border-radius:2px;
+    cursor:pointer; user-select:none; transition:all .15s ease;
+  }
+  .check-tile label::before{
+    content:""; width:15px; height:15px; flex:0 0 15px; border:1.5px solid var(--ink-soft);
+    border-radius:2px; display:inline-block; background:var(--card);
+  }
+  .check-tile input:checked + label{ background:var(--green-soft); border-color:var(--green); }
+  .check-tile input:checked + label::before{ background:var(--green); border-color:var(--green); }
+  .check-tile input:focus-visible + label{ outline:2px solid var(--blue); outline-offset:1px; }
+
+  .field-label{ font-size:12.5px; color:var(--ink-soft); margin:0 0 6px; display:block; }
+
+  select{
+    width:100%; font-family:'Public Sans', sans-serif; font-size:14px; color:var(--ink);
+    padding:10px 10px; border:1px solid var(--line); border-radius:2px; background:var(--card);
+    margin-bottom:12px;
+  }
+  input[type="text"].other-lang{
+    width:100%; font-family:'Public Sans', sans-serif; font-size:14px; color:var(--ink);
+    padding:9px 10px; border:1px solid var(--line); border-radius:2px; background:var(--card);
+    margin:-4px 0 12px; display:none;
+  }
+  input[type="text"].other-lang.show{ display:block; }
+
+  textarea{
+    width:100%; min-height:74px; font-family:'Public Sans', sans-serif; font-size:14px; color:var(--ink);
+    padding:10px; border:1px solid var(--line); border-radius:2px; background:var(--card);
+    resize:vertical; margin-bottom:16px;
+  }
+  ::placeholder{ color:#A79E88; }
+
+  .stop-actions{ display:flex; align-items:center; gap:14px; }
+  .save-btn{
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:.06em; text-transform:uppercase;
+    background:var(--ink); color:var(--card); border:none; padding:11px 20px; border-radius:2px;
+    cursor:pointer; transition:background .15s ease;
+  }
+  .save-btn:hover{ background:var(--blue); }
+  .save-btn:disabled{ opacity:.55; cursor:default; }
+  .stop-status{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ink-soft); }
+  .stop-status.error{ color:var(--red); }
+  .stop-status.ok{ color:var(--green); }
+
+  @media (max-width:520px){
+    h1{ font-size:27px; }
+    .stop{ flex-direction:column; }
+    .stop-tab{ width:100%; flex:none; padding:8px 0; }
+    .checks{ grid-template-columns:1fr; }
+  }
+</style>
+
+
+
+
+
+</head>
+<body>
+<div class="wrap">
+
+  <div class="org-bar">
+    <img src="https://upload.wikimedia.org/wikipedia/en/thumb/2/20/Democratic_Socialists_of_America_Logo_%28official%29.svg/960px-Democratic_Socialists_of_America_Logo_%28official%29.svg.png" alt="DSA logo">
+    <div class="org-bar-text">
+      <div class="org-bar-name">Democratic Socialists of America</div>
+      <div class="org-bar-sub">Boston DSA · Housing &amp; Tenant Rights Committee</div>
+    </div>
+  </div>
+
+  <h1>Eviction Defense Canvass</h1>
+  <p class="intro">Stops below are ordered by walking proximity. Log each visit as you go </p>
+
+
+
+  <div id="map"></div>
+
+  <div class="eyebrow">Mission Hill Route · <span id="stopCount"></span> stops</div>
+  <div class="progress" id="progress"></div>
+  <div class="progress-label" id="progressLabel"></div>
+  <div class="stops" id="stops"></div>
+
+</div>
+
+<script>
+// ---- CONFIGURATION ----
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbxER7gpFXo2CFWF7a8-z1Ic_Ng4YJAg-o9bR5By2vRndWwcniw31YOVlGo2ex3bGac/exec";
+
+// ---- CANVAS LIST DATA ----
+// Each stop needs lat/lng for the map + route. Look these up (e.g. via Google Maps,
+// right-click a pin -> the coordinates are the first thing in the context menu).
+const STOPS = [
+  {
+    id: 1,
+    address: "14 Spring St, Newton, NJ",
+    lat: 41.0605, lng: -74.7523,
+    plaintiff: "Sussex Commons Realty LLC",
+    defendants: "M. Delgado",
+    fileDate: "2026-06-02",
+    courtDate: "2026-08-27",
+    caseNumber: "LT-2026-01142",
+    status: "Answer Filed",
+    reason: "Non-payment of rent"
+  },
+  {
+    id: 2,
+    address: "212 Water St, Newton, NJ",
+    lat: 41.0489, lng: -74.7601,
+    plaintiff: "Kittatinny Holdings LP",
+    defendants: "R. & T. Osei",
+    fileDate: "2026-05-19",
+    courtDate: "2026-08-25",
+    caseNumber: "LT-2026-01098",
+    status: "Default Judgment",
+    reason: "Holdover — end of lease"
+  },
+  {
+    id: 3,
+    address: "87 Sparta Ave, Newton, NJ",
+    lat: 41.0552, lng: -74.7482,
+    plaintiff: "Merriam Property Group",
+    defendants: "J. Alvarez",
+    fileDate: "2026-06-10",
+    courtDate: "2026-09-02",
+    caseNumber: "LT-2026-01177",
+    status: "Mediation Scheduled",
+    reason: "Non-payment of rent"
+  },
+  {
+    id: 4,
+    address: "33 Ryerson Ave, Newton, NJ",
+    lat: 41.0468, lng: -74.7455,
+    plaintiff: "Blue Heron Rentals Inc.",
+    defendants: "P. Nguyen",
+    fileDate: "2026-04-28",
+    courtDate: "2026-08-22",
+    caseNumber: "LT-2026-00964",
+    status: "Trial Set",
+    reason: "Lease violation"
+  },
+  {
+    id: 5,
+    address: "501 High St, Newton, NJ",
+    lat: 41.0611, lng: -74.7639,
+    plaintiff: "Sussex Commons Realty LLC",
+    defendants: "C. Boucher",
+    fileDate: "2026-06-15",
+    courtDate: "2026-09-05",
+    caseNumber: "LT-2026-01201",
+    status: "Stay Granted",
+    reason: "Non-payment of rent"
+  },
+  {
+    id: 6,
+    address: "76 Mill St, Newton, NJ",
+    lat: 41.0523, lng: -74.7568,
+    plaintiff: "Kittatinny Holdings LP",
+    defendants: "S. Whitfield",
+    fileDate: "2026-05-30",
+    courtDate: "2026-08-29",
+    caseNumber: "LT-2026-01130",
+    status: "Pending",
+    reason: "Non-payment of rent"
+  }
+];
+
+// ---- Route: greedy nearest-neighbor by walking-line distance ----
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function computeRoute(stops) {
+  const remaining = [...stops];
+  const route = [remaining.shift()];
+  while (remaining.length) {
+    const last = route[route.length - 1];
+    let bestIdx = 0, bestDist = Infinity;
+    remaining.forEach((s, i) => {
+      const d = haversineKm(last, s);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    route.push(remaining.splice(bestIdx, 1)[0]);
+  }
+  return route;
+}
+const ROUTE = computeRoute(STOPS);
+
+// ---- Status chip styling ----
+function statusClass(status) {
+  const s = status.toLowerCase();
+  if (s.includes("judgment") || s.includes("trial")) return "status-urgent";
+  if (s.includes("stay") || s.includes("dismiss") || s.includes("granted")) return "status-ok";
+  return "status-neutral";
+}
+
+function mapsUrl(stop) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}&travelmode=walking`;
+}
+
+// ---- Render progress bar ----
+const loggedIds = new Set();
+function renderProgress() {
+  const bar = document.getElementById("progress");
+  bar.innerHTML = "";
+  ROUTE.forEach(s => {
+    const seg = document.createElement("span");
+    if (loggedIds.has(s.id)) seg.classList.add("done");
+    bar.appendChild(seg);
+  });
+  document.getElementById("progressLabel").textContent =
+    `${loggedIds.size} of ${ROUTE.length} stops logged`;
+}
+document.getElementById("stopCount").textContent = ROUTE.length;
+
+// ---- Render map ----
+const map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const markers = {};
+const latlngs = ROUTE.map(s => [s.lat, s.lng]);
+L.polyline(latlngs, { color: '#2C4A6E', weight: 3, dashArray: '6,8' }).addTo(map);
+
+ROUTE.forEach((s, idx) => {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="marker-pin" id="pin-${s.id}"><span>${idx + 1}</span></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+  });
+  const m = L.marker([s.lat, s.lng], { icon }).addTo(map);
+  m.on('click', () => {
+    document.getElementById(`stop-${s.id}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  markers[s.id] = m;
+});
+map.fitBounds(L.latLngBounds(latlngs), { padding: [30, 30] });
+
+// ---- Render stop cards ----
+const stopsEl = document.getElementById("stops");
+ROUTE.forEach((s, idx) => {
+  const card = document.createElement("div");
+  card.className = "stop";
+  card.id = `stop-${s.id}`;
+  card.innerHTML = `
+    <div class="stop-tab">${idx + 1}</div>
+    <div class="stop-body">
+      <p class="stop-address"><a href="${mapsUrl(s)}" target="_blank" rel="noopener">${s.address}</a></p>
+      <p class="caption">${s.plaintiff} v. ${s.defendants}</p>
+      <div class="chips">
+        <span class="chip">Case ${s.caseNumber}</span>
+        <span class="chip ${statusClass(s.status)}">${s.status}</span>
+        <span class="chip">Filed ${s.fileDate}</span>
+        <span class="chip">Court ${s.courtDate}</span>
+        <span class="chip">${s.reason}</span>
+      </div>
+      <a class="directions-btn" href="${mapsUrl(s)}" target="_blank" rel="noopener">Walk here →</a>
+
+      <div class="log-divider">Canvass Log</div>
+      <div class="checks">
+        <div class="check-tile">
+          <input type="checkbox" id="knock-${s.id}">
+          <label for="knock-${s.id}">Knocked on door</label>
+        </div>
+        <div class="check-tile">
+          <input type="checkbox" id="spoke-${s.id}">
+          <label for="spoke-${s.id}">Spoke to tenant</label>
+        </div>
+        <div class="check-tile">
+          <input type="checkbox" id="handout-${s.id}">
+          <label for="handout-${s.id}">Left handout</label>
+        </div>
+        <div class="check-tile">
+          <input type="checkbox" id="followup-${s.id}">
+          <label for="followup-${s.id}">Follow-up needed</label>
+        </div>
+      </div>
+
+      <label class="field-label" for="lang-${s.id}">Language barrier</label>
+      <select id="lang-${s.id}">
+        <option value="None">None</option>
+        <option value="Spanish">Spanish</option>
+        <option value="French Creole">French Creole</option>
+        <option value="Other">Other</option>
+      </select>
+      <input type="text" class="other-lang" id="lang-other-${s.id}" placeholder="Specify language…">
+
+      <label class="field-label" for="notes-${s.id}">Canvass notes</label>
+      <textarea id="notes-${s.id}" placeholder="Plans, barriers, next steps…"></textarea>
+
+      <div class="stop-actions">
+        <button class="save-btn" id="save-${s.id}">Save response</button>
+        <span class="stop-status" id="status-${s.id}"></span>
+      </div>
+    </div>
+  `;
+  stopsEl.appendChild(card);
+});
+
+// Reveal "other language" text field when selected
+STOPS.forEach(s => {
+  const sel = document.getElementById(`lang-${s.id}`);
+  const other = document.getElementById(`lang-other-${s.id}`);
+  sel.addEventListener("change", () => {
+    other.classList.toggle("show", sel.value === "Other");
+  });
+});
+
+// ---- Save handlers ----
+STOPS.forEach(s => {
+  const btn = document.getElementById(`save-${s.id}`);
+  const statusEl = document.getElementById(`status-${s.id}`);
+
+  btn.addEventListener("click", async () => {
+    if (ENDPOINT_URL.includes("PASTE_YOUR")) {
+      statusEl.textContent = "Set ENDPOINT_URL in the file first.";
+      statusEl.className = "stop-status error";
+      return;
+    }
+
+    const lang = document.getElementById(`lang-${s.id}`).value;
+    const data = {
+      stop_id: s.id,
+      address: s.address,
+      case_number: s.caseNumber,
+      plaintiff: s.plaintiff,
+      defendants: s.defendants,
+      knocked_door: document.getElementById(`knock-${s.id}`).checked,
+      spoke_tenant: document.getElementById(`spoke-${s.id}`).checked,
+      left_handout: document.getElementById(`handout-${s.id}`).checked,
+      follow_up_needed: document.getElementById(`followup-${s.id}`).checked,
+      language_barrier: lang === "Other"
+        ? (document.getElementById(`lang-other-${s.id}`).value || "Other")
+        : lang,
+      notes: document.getElementById(`notes-${s.id}`).value,
+      submitted_at: new Date().toISOString()
+    };
+
+    btn.disabled = true;
+    statusEl.className = "stop-status";
+    statusEl.textContent = "Saving…";
+
+    try {
+      await fetch(ENDPOINT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(data)
+      });
+      statusEl.textContent = "Saved ✓";
+      statusEl.className = "stop-status ok";
+      loggedIds.add(s.id);
+      document.getElementById(`stop-${s.id}`).classList.add("logged");
+      const pin = document.getElementById(`pin-${s.id}`);
+      if (pin) pin.classList.add("logged");
+      renderProgress();
+    } catch (err) {
+      statusEl.textContent = "Something went wrong — try again.";
+      statusEl.className = "stop-status error";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
+renderProgress();
+</script>
+</body>
+</html>
